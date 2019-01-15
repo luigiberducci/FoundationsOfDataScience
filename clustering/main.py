@@ -2,7 +2,7 @@ import sys
 import KMeans
 
 def main(argv):
-    clusteringK = 2
+    clusteringK = 5
     x, y = extractData("data/train.csv")
     clustering = createClustering(clusteringK, x, y)
 
