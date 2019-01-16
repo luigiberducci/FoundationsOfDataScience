@@ -34,19 +34,68 @@ class NaiveBayes:
             dom.add(fieldValue)
         return sorted(list(dom))
 
+    def predict(self, observation, predictField):
+        fieldID = self.getFieldIDByName(predictField)
+        hMAP, prob = self.getMaxLikelihoodValue(observation, predictField)
+        predictedValue = self.getIthValueInDomain(fieldID, hMAP)
+        return predictedValue, prob
+
+    def getMaxLikelihoodValue(self, observation, predictField):
+        allProbabilities = self.getProbDistributionForEachValue(observation, predictField)
+        maxProb = max(allProbabilities)
+        sumUpProbs = sum(prob for prob in allProbabilities)
+
+        hMAP = allProbabilities.index(maxProb)
+        probHMAP = maxProb/sumUpProbs
+        return hMAP, probHMAP
+
+    def getProbDistributionForEachValue(self, observation, predictField):
+        predFieldID = self.getFieldIDByName(predictField)
+        probHypotesis = []
+        for valueID, hypValue in enumerate(self.getFieldDomain(predFieldID)):
+            prob = self.getProbabilityOfHypotesis(observation, predFieldID, valueID)
+            probHypotesis.append(prob)
+        return probHypotesis
+
+    def getProbabilityOfHypotesis(self, observation, hypFieldID, hypValueID):
+        product = self.getProductOfCondIndipendentObservation(observation, hypFieldID, hypValueID)
+        prior = self.getPriorProbability(hypFieldID, hypValueID)
+        return product*prior
+
+    def getProductOfCondIndipendentObservation(self, observation, hypFieldID, hypValueID):
+        hypDistributionAllFields = self.getProbDistributionOfHypotesis(hypFieldID, hypValueID)
+        product = 1
+        for fieldID, obsValue in enumerate(observation):
+            obsValID = self.getValueIDByName(fieldID, obsValue)
+            hypDistrCurrentField = hypDistributionAllFields[fieldID]
+            product = product * hypDistrCurrentField[obsValID]
+        return product
+
+    def getProbDistributionOfHypotesis(self, fieldID, valueID):
+        hypotesis = (fieldID, valueID)
+        return self.likelihoodTable.get(hypotesis)
+
+    def getPriorProbability(self, fieldID, valueID):
+        return self.priorProbabilities[fieldID][valueID]
+
+    def getFieldIDByName(self, field):
+        return self.fields.index(field)
+
+    def getValueIDByName(self, fieldID, value):
+        domain = self.getFieldDomain(fieldID)
+        return domain.index(value)
+
     def train(self):
         self.computeAllPriorProbabilities()
         self.computeAllLikelihoodOfData()
 
     def computeAllLikelihoodOfData(self):
-        likelihood = []
+        likelihood = dict()
         for f, field in enumerate(self.fields):
-            fieldLikelihoods = []
             domain = self.getFieldDomain(f)
             for v, value in enumerate(domain):
                 likelihoodWithHypotesis = self.computeLikelihoodOfDataKnowingHypotesis(f, v)
-                fieldLikelihoods.append(likelihoodWithHypotesis)
-            likelihood.append(fieldLikelihoods)
+                likelihood[(f,v)] = likelihoodWithHypotesis
         self.likelihoodTable = likelihood
 
     def computeLikelihoodOfDataKnowingHypotesis(self, hypotesisField, hypotesisValue):
@@ -66,7 +115,6 @@ class NaiveBayes:
     def getFieldDomain(self, fieldID):
         return self.domains[fieldID]
 
-
     def computeAllPriorProbabilities(self):
         allPriorProbs = []
         for i, field in enumerate(self.fields):
@@ -81,9 +129,8 @@ class NaiveBayes:
             priorDistributionOfField.append(probThatFieldHasVal)
         return priorDistributionOfField
 
-    def computeProbThatFieldHasValue(self, i, j):
-        value = self.getIthValueInDomain(i, j)
-        valueOccurrences = self.countTimesThatFieldHasValue(i, value)
+    def computeProbThatFieldHasValue(self, fieldID, valueID):
+        valueOccurrences = self.countTimesThatFieldHasValue(fieldID, valueID)
         numOfIstances = self.getNumberOfIstances()
         return valueOccurrences/numOfIstances
 
@@ -94,10 +141,11 @@ class NaiveBayes:
     def countTimesThatFieldHasValue(self, i, value):
         return self.countTimesThatFieldHasValueInDataSubset(i, value, self.dataTable)
 
-    def countTimesThatFieldHasValueInDataSubset(self, i, value, lines):
+    def countTimesThatFieldHasValueInDataSubset(self, fieldID, valueID, lines):
         countOccurrences = 0
+        value = self.getIthValueInDomain(fieldID, valueID)
         for line in lines:
-            currentValue = line[i]
+            currentValue = line[fieldID]
             if currentValue == value:
                 countOccurrences = countOccurrences + 1
         return countOccurrences
